@@ -1,0 +1,3 @@
+[submodule "unihook-contracts/lib/v4-core"]
+	path = unihook-contracts/lib/v4-core
+	url = https://github.com/Uniswap/v4-core
