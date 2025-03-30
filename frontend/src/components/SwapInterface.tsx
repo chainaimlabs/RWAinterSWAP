@@ -72,7 +72,7 @@ export default function SwapInterface() {
    const [isSwapping, setIsSwapping] = useState<boolean>(false);
    const [swapStatus, setSwapStatus] = useState<SwapStatus>({
       fetchingOptimismData: { status: 'pending', message: 'Fetching market data from Optimism' },
-      runningMLModel: { status: 'pending', message: 'Running ML model for price prediction' },
+      runningMLModel: { status: 'pending', message: 'Running Hybrid market risk simulation' },
       calculatingFee: { status: 'pending', message: 'Calculating optimal dynamic fee' },
       executingSwap: { status: 'pending', message: 'Executing swap transaction' }
    });
