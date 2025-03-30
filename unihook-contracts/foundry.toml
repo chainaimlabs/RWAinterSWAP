@@ -1,0 +1,16 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.26"
+
+
+
+[rpc_endpoints]
+unichain = "https://sepolia.unichain.org"
+op_chain_a = "http://127.0.0.1:9545"
+op_chain_b = "http://127.0.0.1:9546"
+devnet0 = "https://interop-alpha-0.optimism.io"
+devnet1 = "https://interop-alpha-1.optimism.io"
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
