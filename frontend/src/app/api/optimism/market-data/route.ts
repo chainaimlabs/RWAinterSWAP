@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { OptimismService } from '@/utils/optimism';
 
@@ -19,7 +20,8 @@ export async function GET(request: NextRequest) {
 
       const [tokenData, marketData] = await Promise.all([
          optimismService.getTokenData(fromToken as any),
-         optimismService.getMarketData(fromToken as any, toToken as any)
+         // optimismService.getMarketData(fromToken as any, toToken as any)
+         optimismService.getMarketData()
       ]);
 
       return NextResponse.json({

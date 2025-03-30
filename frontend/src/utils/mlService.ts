@@ -19,8 +19,8 @@ export class MLService {
    async predictOptimalFee(
       marketData: MarketData,
       amount: string,
-      fromToken: string,
-      toToken: string
+      // fromToken: string,
+      // toToken: string
    ): Promise<MLPrediction> {
       // In a real implementation, you would:
       // 1. Preprocess the market data

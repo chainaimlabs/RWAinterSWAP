@@ -80,7 +80,7 @@ export class OptimismService {
    async getTokenPrice(
       fromToken: keyof typeof TOKEN_ADDRESSES.mainnet,
       toToken: keyof typeof TOKEN_ADDRESSES.mainnet,
-      amount: string
+      // amount: string
    ) {
       // In a real implementation, you would:
       // 1. Query Optimism's price oracle or DEX contracts
@@ -98,8 +98,8 @@ export class OptimismService {
    }
 
    async getMarketData(
-      fromToken: keyof typeof TOKEN_ADDRESSES.mainnet,
-      toToken: keyof typeof TOKEN_ADDRESSES.mainnet
+      // fromToken: keyof typeof TOKEN_ADDRESSES.mainnet,
+      // toToken: keyof typeof TOKEN_ADDRESSES.mainnet
    ) {
       // In a real implementation, you would:
       // 1. Fetch historical price data

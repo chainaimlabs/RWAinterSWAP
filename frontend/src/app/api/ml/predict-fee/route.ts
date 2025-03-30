@@ -27,14 +27,15 @@ export async function POST(request: NextRequest) {
       const mlService = new MLService();
 
       // Get market data from Optimism
-      const marketData = await optimismService.getMarketData(fromToken, toToken);
+      // const marketData = await optimismService.getMarketData(fromToken, toToken);
+      const marketData = await optimismService.getMarketData();
 
       // Get ML prediction
       const prediction = await mlService.predictOptimalFee(
          marketData,
          amount,
-         fromToken,
-         toToken
+         // fromToken,
+         // toToken
       );
 
       return NextResponse.json({
