@@ -1,11 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Decimal } from 'decimal.js';
 import { ArrowsUpDownIcon } from '@heroicons/react/24/outline';
 import LoadingSpinner from './LoadingSpinner';
 import TokenSelect from './TokenSelect';
 
 // Add Ethereum provider type to window object
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface EthereumProvider {
    request: (args: { method: string; params?: string[] }) => Promise<string[]>;
    on: (eventName: string, handler: (params: string[]) => void) => void;
@@ -14,7 +16,11 @@ interface EthereumProvider {
 
 declare global {
    interface Window {
-      ethereum?: EthereumProvider;
+      ethereum?: {
+         request: (args: { method: string; params?: any[] }) => Promise<any>;
+         on: (event: string, callback: (accounts: string[]) => void) => void;
+         removeListener: (event: string, callback: (accounts: string[]) => void) => void;
+      };
    }
 }
 
@@ -61,8 +67,8 @@ export default function SwapInterface() {
    const [fromAmount, setFromAmount] = useState<string>('');
    const [toAmount, setToAmount] = useState<string>('');
    const [fee, setFee] = useState<number>(0.3);
-   const [account, setAccount] = useState<string>('');
-   const [isConnecting, setIsConnecting] = useState<boolean>(false);
+   const [account, setAccount] = useState<string | null>(null);
+   const [isConnecting, setIsConnecting] = useState(false);
    const [isSwapping, setIsSwapping] = useState<boolean>(false);
    const [swapStatus, setSwapStatus] = useState<SwapStatus>({
       fetchingOptimismData: { status: 'pending', message: 'Fetching market data from Optimism' },
@@ -71,25 +77,65 @@ export default function SwapInterface() {
       executingSwap: { status: 'pending', message: 'Executing swap transaction' }
    });
 
+   // Handle account changes
+   const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts.length === 0) {
+         // MetaMask is locked or the user has not connected any accounts
+         setAccount(null);
+      } else {
+         setAccount(accounts[0]);
+      }
+   };
+
+   // Connect wallet function
    const connectWallet = async () => {
-      if (typeof window.ethereum === 'undefined') {
+      if (!window.ethereum) {
          alert('Please install MetaMask to use this feature');
          return;
       }
 
       try {
          setIsConnecting(true);
-         const accounts = await window.ethereum.request({
-            method: 'eth_requestAccounts'
-         });
-         setAccount(accounts[0]);
+         // Request account access
+         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+         handleAccountsChanged(accounts);
+
+         // Add listener for account changes
+         window.ethereum.on('accountsChanged', handleAccountsChanged);
       } catch (error) {
-         console.error('Failed to connect wallet:', error);
-         alert('Failed to connect wallet. Please try again.');
+         console.error('Error connecting wallet:', error);
+         alert('Failed to connect wallet');
       } finally {
          setIsConnecting(false);
       }
    };
+
+   // Clean up event listener on unmount
+   useEffect(() => {
+      return () => {
+         if (window.ethereum) {
+            window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+         }
+      };
+   }, []);
+
+   // Check if already connected on mount
+   useEffect(() => {
+      const checkConnection = async () => {
+         if (window.ethereum) {
+            try {
+               const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+               if (accounts.length > 0) {
+                  setAccount(accounts[0]);
+               }
+            } catch (error) {
+               console.error('Error checking wallet connection:', error);
+            }
+         }
+      };
+
+      checkConnection();
+   }, []);
 
    // Calculate dynamic fee based on amount
    const calculateDynamicFee = (amount: string) => {
@@ -343,10 +389,17 @@ export default function SwapInterface() {
                <div className="w-10 h-10 bg-[#2c2c2c] rounded-full flex items-center justify-center">
                   <span className="text-purple-500">◆</span>
                </div>
-               <div className="flex flex-col">
-                  <span className="text-lg font-medium">kaleel</span>
-                  <span className="text-sm text-gray-500">{account ? `${account.slice(0, 6)}...${account.slice(-4)}` : '0x0f7e...2c4C'}</span>
-               </div>
+               {account ? (
+                  <div className="flex flex-col">
+                     <span className="text-sm text-gray-400">Connected Wallet</span>
+                     <span className="text-white font-medium">{`${account.slice(0, 6)}...${account.slice(-4)}`}</span>
+                  </div>
+               ) : (
+                  <div className="flex flex-col">
+                     <span className="text-sm text-gray-400">Wallet</span>
+                     <span className="text-white font-medium">Not Connected</span>
+                  </div>
+               )}
             </div>
             <button
                onClick={connectWallet}
@@ -370,116 +423,150 @@ export default function SwapInterface() {
                <h2 className="text-lg font-medium">Swap Tokens</h2>
             </div>
 
-            {/* From Token */}
-            <div className="bg-[#2c2c2c] rounded-xl p-4 mb-2">
-               <div className="flex justify-between mb-2">
-                  <span className="text-sm text-gray-400">From</span>
-                  <span className="text-sm text-gray-400">Balance: {fromToken.balance}</span>
-               </div>
-               <div className="flex items-center gap-2">
-                  <input
-                     type="text"
-                     inputMode="decimal"
-                     pattern="[0-9]*[.]?[0-9]*"
-                     placeholder="0.0"
-                     value={fromAmount}
-                     onChange={(e) => {
-                        e.preventDefault();
-                        handleFromAmountChange(e.target.value);
-                     }}
-                     onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                           e.preventDefault();
-                        }
-                     }}
-                     className="w-full bg-transparent text-2xl outline-none text-white placeholder-gray-500"
-                  />
-                  <TokenSelect
-                     tokens={mockTokens}
-                     selectedToken={fromToken}
-                     onChange={handleFromTokenChange}
-                  />
-               </div>
-            </div>
-
-            {/* Swap Button */}
-            <div className="flex justify-center -my-2 relative z-10">
-               <button
-                  onClick={switchTokens}
-                  className="bg-[#2c2c2c] p-2 rounded-lg shadow-xl hover:bg-[#3c3c3c] transition-all border border-gray-700"
-               >
-                  <ArrowsUpDownIcon className="h-6 w-6 text-blue-400" />
-               </button>
-            </div>
-
-            {/* To Token */}
-            <div className="bg-[#2c2c2c] rounded-xl p-4 mt-2">
-               <div className="flex justify-between mb-2">
-                  <span className="text-sm text-gray-400">To</span>
-                  <span className="text-sm text-gray-400">Balance: {toToken.balance}</span>
-               </div>
-               <div className="flex items-center gap-2">
-                  <input
-                     type="text"
-                     inputMode="decimal"
-                     pattern="[0-9]*[.]?[0-9]*"
-                     placeholder="0.0"
-                     value={toAmount}
-                     onChange={(e) => {
-                        e.preventDefault();
-                        handleToAmountChange(e.target.value);
-                     }}
-                     onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                           e.preventDefault();
-                        }
-                     }}
-                     className="w-full bg-transparent text-2xl outline-none text-white placeholder-gray-500"
-                  />
-                  <TokenSelect
-                     tokens={mockTokens}
-                     selectedToken={toToken}
-                     onChange={handleToTokenChange}
-                  />
-               </div>
-            </div>
-
-            {/* Fee Display */}
-            <div className="bg-[#2c2c2c] rounded-xl p-4 mt-4">
-               {isSwapping ? (
-                  renderSwapSteps()
-               ) : (
-                  <>
-                     <div className="flex justify-between items-center">
-                        <span className="flex items-center gap-2 text-gray-400">
-                           <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
-                           Dynamic Fee
-                        </span>
-                        <span className="text-white font-medium">{fee}%</span>
-                     </div>
-                     {fromAmount && toAmount && (
-                        <div className="flex justify-between mt-3 pt-3 border-t border-gray-700">
-                           <span className="text-gray-400">Rate</span>
-                           <span className="text-white">
-                              1 {fromToken.symbol} = {new Decimal(toAmount).dividedBy(new Decimal(fromAmount)).toFixed(4)} {toToken.symbol}
-                           </span>
-                        </div>
+            {!account ? (
+               <div className="flex flex-col items-center justify-center py-8">
+                  <div className="w-16 h-16 bg-[#2c2c2c] rounded-full flex items-center justify-center mb-4">
+                     <svg className="w-8 h-8 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                     </svg>
+                  </div>
+                  <h3 className="text-xl font-medium mb-2">Connect Wallet</h3>
+                  <p className="text-gray-400 text-center mb-4">Please connect your wallet to start swapping tokens</p>
+                  <button
+                     onClick={connectWallet}
+                     disabled={isConnecting}
+                     className="bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 px-6 rounded-xl font-medium
+                              hover:from-purple-600 hover:to-blue-600 transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                     {isConnecting ? (
+                        <>
+                           <LoadingSpinner size="sm" className="text-white" />
+                           Connecting...
+                        </>
+                     ) : (
+                        <>
+                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                           </svg>
+                           Connect Wallet
+                        </>
                      )}
-                  </>
-               )}
-            </div>
+                  </button>
+               </div>
+            ) : (
+               <>
+                  {/* From Token */}
+                  <div className="bg-[#2c2c2c] rounded-xl p-4 mb-2">
+                     <div className="flex justify-between mb-2">
+                        <span className="text-sm text-gray-400">From</span>
+                        <span className="text-sm text-gray-400">Balance: {fromToken.balance}</span>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <input
+                           type="text"
+                           inputMode="decimal"
+                           pattern="[0-9]*[.]?[0-9]*"
+                           placeholder="0.0"
+                           value={fromAmount}
+                           onChange={(e) => {
+                              e.preventDefault();
+                              handleFromAmountChange(e.target.value);
+                           }}
+                           onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                 e.preventDefault();
+                              }
+                           }}
+                           className="w-full bg-transparent text-2xl outline-none text-white placeholder-gray-500"
+                        />
+                        <TokenSelect
+                           tokens={mockTokens}
+                           selectedToken={fromToken}
+                           onChange={handleFromTokenChange}
+                        />
+                     </div>
+                  </div>
 
-            {/* Swap Button */}
-            <button
-               className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 rounded-xl font-medium mt-4
-                        hover:from-purple-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:hover:from-purple-500 
-                        disabled:hover:to-blue-500 flex items-center justify-center gap-2"
-               onClick={handleSwap}
-               disabled={isSwapping || !fromAmount || !toAmount}
-            >
-               {isSwapping && <LoadingSpinner size="sm" className="text-white" />}
-               {getSwapButtonText()}
-            </button>
+                  {/* Swap Button */}
+                  <div className="flex justify-center -my-2 relative z-10">
+                     <button
+                        onClick={switchTokens}
+                        className="bg-[#2c2c2c] p-2 rounded-lg shadow-xl hover:bg-[#3c3c3c] transition-all border border-gray-700"
+                     >
+                        <ArrowsUpDownIcon className="h-6 w-6 text-blue-400" />
+                     </button>
+                  </div>
+
+                  {/* To Token */}
+                  <div className="bg-[#2c2c2c] rounded-xl p-4 mt-2">
+                     <div className="flex justify-between mb-2">
+                        <span className="text-sm text-gray-400">To</span>
+                        <span className="text-sm text-gray-400">Balance: {toToken.balance}</span>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <input
+                           type="text"
+                           inputMode="decimal"
+                           pattern="[0-9]*[.]?[0-9]*"
+                           placeholder="0.0"
+                           value={toAmount}
+                           onChange={(e) => {
+                              e.preventDefault();
+                              handleToAmountChange(e.target.value);
+                           }}
+                           onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                 e.preventDefault();
+                              }
+                           }}
+                           className="w-full bg-transparent text-2xl outline-none text-white placeholder-gray-500"
+                        />
+                        <TokenSelect
+                           tokens={mockTokens}
+                           selectedToken={toToken}
+                           onChange={handleToTokenChange}
+                        />
+                     </div>
+                  </div>
+
+                  {/* Fee Display */}
+                  <div className="bg-[#2c2c2c] rounded-xl p-4 mt-4">
+                     {isSwapping ? (
+                        renderSwapSteps()
+                     ) : (
+                        <>
+                           <div className="flex justify-between items-center">
+                              <span className="flex items-center gap-2 text-gray-400">
+                                 <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                                 Dynamic Fee
+                              </span>
+                              <span className="text-white font-medium">{fee}%</span>
+                           </div>
+                           {fromAmount && toAmount && (
+                              <div className="flex justify-between mt-3 pt-3 border-t border-gray-700">
+                                 <span className="text-gray-400">Rate</span>
+                                 <span className="text-white">
+                                    1 {fromToken.symbol} = {new Decimal(toAmount).dividedBy(new Decimal(fromAmount)).toFixed(4)} {toToken.symbol}
+                                 </span>
+                              </div>
+                           )}
+                        </>
+                     )}
+                  </div>
+
+                  {/* Swap Button */}
+                  <button
+                     className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 rounded-xl font-medium mt-4
+                              hover:from-purple-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:hover:from-purple-500 
+                              disabled:hover:to-blue-500 flex items-center justify-center gap-2"
+                     onClick={handleSwap}
+                     disabled={isSwapping || !fromAmount || !toAmount}
+                  >
+                     {isSwapping && <LoadingSpinner size="sm" className="text-white" />}
+                     {getSwapButtonText()}
+                  </button>
+               </>
+            )}
          </div>
       </div>
    );
